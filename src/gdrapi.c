@@ -183,7 +183,7 @@ gdr_t gdr_open(void)
 
     g->gdrdrv_version = params.gdrdrv_version;
 
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_open: 1\n", getpid(), gettid());
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_open: 1\n", provide_hostname(), getpid(), gettid());
 
     return g;
 
@@ -193,7 +193,7 @@ err_fd:
 err_mem:
     free(g);
 
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_open: 2\n", getpid(), gettid());
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_open: 2\n", provide_hostname(), getpid(), gettid());
 
     return NULL;
 }
@@ -205,22 +205,22 @@ int gdr_close(gdr_t g)
     gdr_memh_t *mh, *next_mh;
 
     pthread_mutex_lock(&mutex);
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_close: 1\n", getpid(), gettid());
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_close: 1\n", provide_hostname(), getpid(), gettid());
     mh = g->memhs.lh_first;
     while (mh != NULL) {
         // gdr_unpin_buffer frees mh, so we need to get the next one
         // beforehand.
         next_mh = mh->entries.le_next;
-        printf("===> [%d, %d] GDRCopy Checkpoint gdr_close: 2: mh=%p, next_mh=%p\n", getpid(), gettid(), mh, next_mh);
+        printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_close: 2: mh=%p, next_mh=%p\n", provide_hostname(), getpid(), gettid(), mh, next_mh);
         ret = _gdr_unpin_buffer(g, from_memh(mh));
-        printf("===> [%d, %d] GDRCopy Checkpoint gdr_close: 3: mh=%p, next_mh=%p\n", getpid(), gettid(), mh, next_mh);
+        printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_close: 3: mh=%p, next_mh=%p\n", provide_hostname(), getpid(), gettid(), mh, next_mh);
         if (ret) {
             gdr_err("error unpinning buffer inside gdr_close (errno=%d/%s)\n", ret, strerror(ret));
             goto err;
         }
         mh = next_mh;
     }
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_close: 4\n", getpid(), gettid());
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_close: 4\n", provide_hostname(), getpid(), gettid());
 
     retcode = close(g->fd);
     if (-1 == retcode) {
@@ -229,10 +229,10 @@ int gdr_close(gdr_t g)
     }
     g->fd = 0;
     free(g);
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_close: 5\n", getpid(), gettid());
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_close: 5\n", provide_hostname, getpid(), gettid());
 
 err:
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_close: 6\n", getpid(), gettid());
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_close: 6\n", provide_hostname(), getpid(), gettid());
     pthread_mutex_unlock(&mutex);
     return ret;
 }
@@ -247,14 +247,14 @@ int gdr_pin_buffer(gdr_t g, unsigned long addr, size_t size, uint64_t p2p_token,
 
     pthread_mutex_lock(&mutex);
     if (!handle) {
-        printf("===> [%d, %d] GDRCopy Checkpoint gdr_pin_buffer: 1: handle is NULL\n", getpid(), gettid());
+        printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_pin_buffer: 1: handle is NULL\n", provide_hostname(), getpid(), gettid());
         ret = EINVAL;
         goto err;
     }
 
     mh = calloc(1, sizeof(gdr_memh_t));
     if (!mh) {
-        printf("===> [%d, %d] GDRCopy Checkpoint gdr_pin_buffer: 2: Cannot allocate mh\n", getpid(), gettid());
+        printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_pin_buffer: 2: Cannot allocate mh\n", provide_hostname(), getpid(), gettid());
         ret = ENOMEM;
         goto err;
     }
@@ -277,12 +277,19 @@ int gdr_pin_buffer(gdr_t g, unsigned long addr, size_t size, uint64_t p2p_token,
     mh->handle = params.handle;
     LIST_INSERT_HEAD(&g->memhs, mh, entries);
     *handle = from_memh(mh);
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_pin_buffer: 3: mh=%p\n", getpid(), gettid(), mh);
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_pin_buffer: 3: mh=%p\n", provide_hostname(), getpid(), gettid(), mh);
 
 err:
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_pin_buffer: 4: mh=%p, ret=%d\n", getpid(), gettid(), mh, ret);
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_pin_buffer: 4: mh=%p, ret=%d\n", provide_hostname(), getpid(), gettid(), mh, ret);
     pthread_mutex_unlock(&mutex);
     return ret;
+}
+
+char * provide_hostname()
+{
+    char *hostname = malloc(sizeof(char) * 1024);
+    gethostname(hostname, 1024);
+    return hostname;
 }
 
 static int _gdr_unpin_buffer(gdr_t g, gdr_mh_t handle)
@@ -298,10 +305,11 @@ static int _gdr_unpin_buffer(gdr_t g, gdr_mh_t handle)
         ret = errno;
         gdr_err("ioctl error (errno=%d)\n", ret);
     }
-    printf("===> [%d, %d] GDRCopy Checkpoint _gdr_unpin_buffer: 1: mh=%p\n", getpid(), gettid(), mh);
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint _gdr_unpin_buffer: 1: mh=%p\n", provide_hostname(), getpid(), gettid(), mh);
     LIST_REMOVE(mh, entries);
-    printf("===> [%d, %d] GDRCopy Checkpoint _gdr_unpin_buffer: 2: mh=%p\n", getpid(), gettid(), mh);
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint _gdr_unpin_buffer: 2: mh=%p\n", provide_hostname(), getpid(), gettid(), mh);
     free(mh);
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint _gdr_unpin_buffer: 3\n", provide_hostname(), getpid(), gettid());
     
     return ret;
 }
@@ -427,10 +435,10 @@ int gdr_map(gdr_t g, gdr_mh_t handle, void **ptr_va, size_t size)
     mh->mapping_type = info.mapping_type;
     gdr_dbg("mapping_type=%d\n", mh->mapping_type);
 
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_map: 1: mh=%p\n", getpid(), gettid(), mh);
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_map: 1: mh=%p\n", provide_hostname(), getpid(), gettid(), mh);
 
 err:
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_map: 2: mh=%p, ret=%d\n", getpid(), gettid(), mh, ret);
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_map: 2: mh=%p, ret=%d\n", provide_hostname(), getpid(), gettid(), mh, ret);
     pthread_mutex_unlock(&mutex);
     return ret;
 }
@@ -445,28 +453,28 @@ int gdr_unmap(gdr_t g, gdr_mh_t handle, void *va, size_t size)
     pthread_mutex_lock(&mutex);
     rounded_size = (size + g->page_size - 1) & g->page_mask;
 
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_unmap: 1: mh=%p\n", getpid(), gettid(), mh);
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_unmap: 1: mh=%p\n", provide_hostname(), getpid(), gettid(), mh);
     if (!gdr_is_mapped(mh->mapping_type)) {
-        printf("===> [%d, %d] GDRCopy Checkpoint gdr_unmap: 2: mh=%p\n", getpid(), gettid(), mh);
+        printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_unmap: 2: mh=%p\n", provide_hostname(), getpid(), gettid(), mh);
         gdr_err("mh is not mapped yet\n");
         ret = EINVAL;
         goto err;
     }
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_unmap: 3: mh=%p\n", getpid(), gettid(), mh);
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_unmap: 3: mh=%p\n", provide_hostname(), getpid(), gettid(), mh);
     retcode = munmap(va, rounded_size);
     if (-1 == retcode) {
         int __errno = errno;
-        printf("===> [%d, %d] GDRCopy Checkpoint gdr_unmap: 4: mh=%p\n", getpid(), gettid(), mh);
+        printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_unmap: 4: mh=%p\n", provide_hostname(), getpid(), gettid(), mh);
         gdr_err("error %s(%d) while unmapping handle %x, rounded_size=%zu\n",
                 strerror(__errno), __errno, handle, rounded_size);
         ret = __errno;
         goto err;
     }
     mh->mapping_type = GDR_MAPPING_TYPE_NONE;
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_unmap: 5: mh=%p\n", getpid(), gettid(), mh);
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_unmap: 5: mh=%p\n", provide_hostname(), getpid(), gettid(), mh);
 
 err:
-    printf("===> [%d, %d] GDRCopy Checkpoint gdr_unmap: 6: mh=%p, ret=%d\n", getpid(), gettid(), mh, ret);
+    printf("===> [%s, %d, %d] GDRCopy Checkpoint gdr_unmap: 6: mh=%p, ret=%d\n", provide_hostname(), getpid(), gettid(), mh, ret);
     pthread_mutex_unlock(&mutex);
     return ret;
 }
