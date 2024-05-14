@@ -61,6 +61,8 @@ enum gdrcopy_msg_level {
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
+char *provide_hostname();
+
 static int gdr_msg_level = GDRCOPY_MSG_ERROR;
 static int gdr_enable_logging = -1;
 
